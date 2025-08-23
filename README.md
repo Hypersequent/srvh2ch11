@@ -112,23 +112,25 @@ npm run example
 
 The module includes comprehensive test suites:
 
-### JavaScript tests (Vitest)
+### JavaScript tests (Node.js built-in test runner)
 
 ```bash
-# Run tests once
+# Run tests (automatically builds TypeScript first)
 npm test
-
-# Run tests in watch mode
-npm run test:watch
 ```
 
 ### Bash tests (curl-based)
 
 ```bash
-# Run basic curl tests
+# Run basic curl tests (automatically builds TypeScript first)
 npm run test:bash
-# or directly
-./test-bash-curl.sh
+```
+
+### Multi-Node version testing (Docker-based)
+
+```bash
+# Test against Node.js 20, 22, and 24
+npm run test:multi
 ```
 
 The tests cover:
@@ -137,6 +139,13 @@ The tests cover:
 - Mixed protocol handling (HTTP/1.1 and HTTP/2 simultaneously)
 - Server configuration with separate options
 - Basic curl-based integration tests
+- Compatibility across multiple Node.js versions (20, 22, 24)
+
+## Limitations
+
+- **HTTP/2 module maturity**: Node.js's `http2` module is less mature than `http`. For example, it doesn't offer `closeAllConnections()` and `closeIdleConnections()` methods that are available in the HTTP/1.1 server. There may be other API gaps as well.
+- **Prior knowledge only**: This module only supports HTTP/2 with prior knowledge. There is no HTTP/1.1 to HTTP/2 upgrade negotiation (note that Upgrade negotiation has been deprecated by [RFC 9113](https://datatracker.ietf.org/doc/html/rfc9113#name-the-h2c-upgrade-token) anyway).
+- **Cleartext only**: This module is designed for cleartext (non-TLS) connections. For TLS connections, use Node.js's native `http2.createSecureServer()` with `allowHTTP1: true`.
 
 ## Acknowledgments
 
