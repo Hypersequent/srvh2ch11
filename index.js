@@ -22,8 +22,12 @@ function createServer(options, onRequestHandler) {
       socket.pause();
       socket.unshift(chunk);
 
-      const prefix = chunk.toString("ascii", 0, Math.min(chunk.length, HTTP2_PREFACE.length));
-      
+      const prefix = chunk.toString(
+        "ascii",
+        0,
+        Math.min(chunk.length, HTTP2_PREFACE.length),
+      );
+
       if (prefix === HTTP2_PREFACE || prefix.startsWith(HTTP2_PREFACE)) {
         h2Server.emit("connection", socket);
       } else {
@@ -42,7 +46,7 @@ function createServer(options, onRequestHandler) {
       closed++;
       if (closed === 3 && callback) callback();
     };
-    
+
     rawServer.close(checkClose);
     h1Server.close(checkClose);
     h2Server.close(checkClose);
@@ -55,7 +59,7 @@ function createServer(options, onRequestHandler) {
     address: rawServer.address.bind(rawServer),
     h1Server,
     h2Server,
-    rawServer
+    rawServer,
   };
 }
 
