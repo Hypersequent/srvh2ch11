@@ -1,4 +1,4 @@
-import srvh2ch11 from "./index.js";
+import srvh2ch11 from "srvh2ch11";
 
 const server = srvh2ch11.createServer((req, res) => {
   const protocol = req.httpVersion === "2.0" ? "HTTP/2" : "HTTP/1.1";

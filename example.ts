@@ -1,4 +1,4 @@
-import srvh2ch11, { RequestHandler, ServerOptions } from "./index.js";
+import srvh2ch11, { RequestHandler, ServerOptions } from "srvh2ch11";
 
 // Example with explicit typing
 const requestHandler: RequestHandler = (req, res) => {

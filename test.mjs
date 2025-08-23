@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, beforeEach, afterEach } from "node:test";
+import assert from "node:assert";
 import srvh2ch11 from "./dist/index.js";
 import http from "node:http";
 import http2 from "node:http2";
@@ -7,21 +8,21 @@ describe("srvh2ch11", () => {
   let server;
   let port;
 
-  beforeAll(() => {
-    return new Promise((resolve) => {
-      server = srvh2ch11.createServer((req, res) => {
-        res.writeHead(200, { 
-          "Content-Type": "application/json",
-          "X-Protocol": req.httpVersion 
-        });
-        res.end(JSON.stringify({
-          version: req.httpVersion,
-          method: req.method,
-          url: req.url,
-          headers: req.headers
-        }));
+  beforeEach(async () => {
+    server = srvh2ch11.createServer((req, res) => {
+      res.writeHead(200, { 
+        "Content-Type": "application/json",
+        "X-Protocol": req.httpVersion 
       });
+      res.end(JSON.stringify({
+        version: req.httpVersion,
+        method: req.method,
+        url: req.url,
+        headers: req.headers
+      }));
+    });
 
+    await new Promise((resolve) => {
       server.listen(0, () => {
         port = server.address().port;
         console.log(`Test server listening on port ${port}`);
@@ -30,8 +31,8 @@ describe("srvh2ch11", () => {
     });
   });
 
-  afterAll(() => {
-    return new Promise((resolve) => {
+  afterEach(async () => {
+    await new Promise((resolve) => {
       server.close(() => {
         console.log("Test server closed");
         resolve();
@@ -65,11 +66,11 @@ describe("srvh2ch11", () => {
         req.end();
       });
 
-      expect(response.statusCode).toBe(200);
-      expect(response.headers["x-protocol"]).toBe("1.1");
-      expect(response.body.version).toBe("1.1");
-      expect(response.body.method).toBe("GET");
-      expect(response.body.url).toBe("/test");
+      assert.strictEqual(response.statusCode, 200);
+      assert.strictEqual(response.headers["x-protocol"], "1.1");
+      assert.strictEqual(response.body.version, "1.1");
+      assert.strictEqual(response.body.method, "GET");
+      assert.strictEqual(response.body.url, "/test");
     });
 
     it("should handle HTTP/1.1 POST request with body", async () => {
@@ -104,11 +105,11 @@ describe("srvh2ch11", () => {
         req.end();
       });
 
-      expect(response.statusCode).toBe(200);
-      expect(response.body.version).toBe("1.1");
-      expect(response.body.method).toBe("POST");
-      expect(response.body.url).toBe("/api/data");
-      expect(response.body.headers["content-type"]).toBe("application/json");
+      assert.strictEqual(response.statusCode, 200);
+      assert.strictEqual(response.body.version, "1.1");
+      assert.strictEqual(response.body.method, "POST");
+      assert.strictEqual(response.body.url, "/api/data");
+      assert.strictEqual(response.body.headers["content-type"], "application/json");
     });
 
     it("should handle multiple concurrent HTTP/1.1 requests", async () => {
@@ -137,8 +138,8 @@ describe("srvh2ch11", () => {
       const responses = await Promise.all(requests);
       
       responses.forEach((response, i) => {
-        expect(response.version).toBe("1.1");
-        expect(response.url).toBe(`/concurrent/${i}`);
+        assert.strictEqual(response.version, "1.1");
+        assert.strictEqual(response.url, `/concurrent/${i}`);
       });
     });
   });
@@ -169,11 +170,11 @@ describe("srvh2ch11", () => {
         req.end();
       });
 
-      expect(response.headers[":status"]).toBe(200);
-      expect(response.headers["x-protocol"]).toBe("2.0");
-      expect(response.body.version).toBe("2.0");
-      expect(response.body.method).toBe("GET");
-      expect(response.body.url).toBe("/test-h2");
+      assert.strictEqual(response.headers[":status"], 200);
+      assert.strictEqual(response.headers["x-protocol"], "2.0");
+      assert.strictEqual(response.body.version, "2.0");
+      assert.strictEqual(response.body.method, "GET");
+      assert.strictEqual(response.body.url, "/test-h2");
     });
 
     it("should handle HTTP/2 POST request", async () => {
@@ -206,10 +207,10 @@ describe("srvh2ch11", () => {
         req.end();
       });
 
-      expect(response.headers[":status"]).toBe(200);
-      expect(response.body.version).toBe("2.0");
-      expect(response.body.method).toBe("POST");
-      expect(response.body.url).toBe("/api/h2-data");
+      assert.strictEqual(response.headers[":status"], 200);
+      assert.strictEqual(response.body.version, "2.0");
+      assert.strictEqual(response.body.method, "POST");
+      assert.strictEqual(response.body.url, "/api/h2-data");
     });
 
     it("should handle multiple concurrent HTTP/2 streams", async () => {
@@ -239,8 +240,8 @@ describe("srvh2ch11", () => {
       client.close();
       
       responses.forEach((response, i) => {
-        expect(response.version).toBe("2.0");
-        expect(response.url).toBe(`/h2-stream/${i}`);
+        assert.strictEqual(response.version, "2.0");
+        assert.strictEqual(response.url, `/h2-stream/${i}`);
       });
     });
   });
@@ -289,11 +290,11 @@ describe("srvh2ch11", () => {
 
       const [h1Response, h2Response] = await Promise.all([h1Request, h2Request]);
 
-      expect(h1Response.version).toBe("1.1");
-      expect(h1Response.url).toBe("/mixed-h1");
+      assert.strictEqual(h1Response.version, "1.1");
+      assert.strictEqual(h1Response.url, "/mixed-h1");
       
-      expect(h2Response.version).toBe("2.0");
-      expect(h2Response.url).toBe("/mixed-h2");
+      assert.strictEqual(h2Response.version, "2.0");
+      assert.strictEqual(h2Response.url, "/mixed-h2");
     });
   });
 
@@ -345,8 +346,8 @@ describe("srvh2ch11", () => {
         req.end();
       });
 
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toBe("OK");
+      assert.strictEqual(response.statusCode, 200);
+      assert.strictEqual(response.body, "OK");
 
       await new Promise((resolve) => testServer.close(resolve));
     });
