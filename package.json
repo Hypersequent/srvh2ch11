@@ -1,0 +1,40 @@
+{
+  "name": "srvh2ch11",
+  "version": "1.0.0",
+  "description": "A simple Node.js module that creates a server supporting both HTTP/1.1 and HTTP/2 cleartext (h2c) on the same port",
+  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "keywords": [
+    "http2",
+    "h2c",
+    "http2-cleartext",
+    "http",
+    "server",
+    "dual-protocol"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "Hypersequent",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hypersequent/srvh2ch11.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hypersequent/srvh2ch11/issues"
+  },
+  "homepage": "https://github.com/hypersequent/srvh2ch11#readme",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:bash": "./test-bash-curl.sh",
+    "example": "node example.js"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}
