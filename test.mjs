@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import srvh2ch11 from "./dist/index.js";
 import http from "node:http";
@@ -8,7 +8,7 @@ describe("srvh2ch11", () => {
   let server;
   let port;
 
-  beforeEach(async () => {
+  before(async () => {
     server = srvh2ch11.createServer((req, res) => {
       res.writeHead(200, { 
         "Content-Type": "application/json",
@@ -31,7 +31,7 @@ describe("srvh2ch11", () => {
     });
   });
 
-  afterEach(async () => {
+  after(async () => {
     await new Promise((resolve) => {
       server.close(() => {
         console.log("Test server closed");
