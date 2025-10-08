@@ -303,11 +303,11 @@ describe("srvh2ch11", () => {
       const testServer = await new Promise((resolve) => {
         const srv = srvh2ch11.createServer(
           {
-            http1: { 
-              keepAliveTimeout: 1000 
+            http1: {
+              keepAliveTimeout: 1000
             },
-            http2: { 
-              maxConcurrentStreams: 50 
+            http2: {
+              maxConcurrentStreams: 50
             }
           },
           (req, res) => {
@@ -348,6 +348,298 @@ describe("srvh2ch11", () => {
 
       assert.strictEqual(response.statusCode, 200);
       assert.strictEqual(response.body, "OK");
+
+      await new Promise((resolve) => testServer.close(resolve));
+    });
+  });
+
+  describe("forceH2c option", () => {
+    it("should handle HTTP/2 requests when forceH2c is enabled", async () => {
+      const testServer = await new Promise((resolve) => {
+        const srv = srvh2ch11.createServer(
+          { forceH2c: true },
+          (req, res) => {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              version: req.httpVersion,
+              url: req.url
+            }));
+          }
+        );
+
+        srv.listen(0, () => {
+          resolve(srv);
+        });
+      });
+
+      const testPort = testServer.address().port;
+
+      const response = await new Promise((resolve, reject) => {
+        const client = http2.connect(`http://localhost:${testPort}`);
+        const req = client.request({
+          ":path": "/force-h2c",
+          ":method": "GET",
+        });
+
+        let data = "";
+        req.on("response", (headers) => {
+          req.on("data", (chunk) => (data += chunk));
+          req.on("end", () => {
+            client.close();
+            resolve({
+              headers,
+              body: JSON.parse(data),
+            });
+          });
+        });
+
+        req.on("error", reject);
+        req.end();
+      });
+
+      assert.strictEqual(response.headers[":status"], 200);
+      assert.strictEqual(response.body.version, "2.0");
+      assert.strictEqual(response.body.url, "/force-h2c");
+
+      await new Promise((resolve) => testServer.close(resolve));
+    });
+
+    it("should reject HTTP/1.1 requests when forceH2c is enabled", async () => {
+      const testServer = await new Promise((resolve) => {
+        const srv = srvh2ch11.createServer(
+          { forceH2c: true },
+          (req, res) => {
+            res.writeHead(200);
+            res.end("OK");
+          }
+        );
+
+        srv.listen(0, () => {
+          resolve(srv);
+        });
+      });
+
+      const testPort = testServer.address().port;
+
+      await assert.rejects(
+        async () => {
+          await new Promise((resolve, reject) => {
+            const req = http.request(
+              {
+                hostname: "localhost",
+                port: testPort,
+                path: "/",
+                method: "GET",
+              },
+              (res) => {
+                let data = "";
+                res.on("data", (chunk) => (data += chunk));
+                res.on("end", () => resolve(data));
+              }
+            );
+            req.on("error", reject);
+            req.end();
+          });
+        },
+        (err) => {
+          return err.code === "ECONNRESET" ||
+                 err.message.includes("socket hang up") ||
+                 err.message.includes("Parse Error");
+        }
+      );
+
+      await new Promise((resolve) => testServer.close(resolve));
+    });
+  });
+
+  describe("http11Compat option", () => {
+    it("should set host header from :authority when http11Compat is true", async () => {
+      const testServer = await new Promise((resolve) => {
+        const srv = srvh2ch11.createServer(
+          { http11Compat: true },
+          (req, res) => {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              hostHeader: req.headers.host,
+              authorityHeader: req.headers[":authority"]
+            }));
+          }
+        );
+
+        srv.listen(0, () => {
+          resolve(srv);
+        });
+      });
+
+      const testPort = testServer.address().port;
+
+      const response = await new Promise((resolve, reject) => {
+        const client = http2.connect(`http://localhost:${testPort}`);
+        const req = client.request({
+          ":path": "/test",
+          ":method": "GET",
+          ":authority": "example.com:8080"
+        });
+
+        let data = "";
+        req.on("response", (headers) => {
+          req.on("data", (chunk) => (data += chunk));
+          req.on("end", () => {
+            client.close();
+            resolve(JSON.parse(data));
+          });
+        });
+
+        req.on("error", reject);
+        req.end();
+      });
+
+      assert.strictEqual(response.hostHeader, "example.com:8080");
+      assert.strictEqual(response.authorityHeader, "example.com:8080");
+
+      await new Promise((resolve) => testServer.close(resolve));
+    });
+
+    it("should NOT set host header from :authority when http11Compat is false", async () => {
+      const testServer = await new Promise((resolve) => {
+        const srv = srvh2ch11.createServer(
+          { http11Compat: false },
+          (req, res) => {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              hostHeader: req.headers.host,
+              authorityHeader: req.headers[":authority"]
+            }));
+          }
+        );
+
+        srv.listen(0, () => {
+          resolve(srv);
+        });
+      });
+
+      const testPort = testServer.address().port;
+
+      const response = await new Promise((resolve, reject) => {
+        const client = http2.connect(`http://localhost:${testPort}`);
+        const req = client.request({
+          ":path": "/test",
+          ":method": "GET",
+          ":authority": "example.com:8080"
+        });
+
+        let data = "";
+        req.on("response", (headers) => {
+          req.on("data", (chunk) => (data += chunk));
+          req.on("end", () => {
+            client.close();
+            resolve(JSON.parse(data));
+          });
+        });
+
+        req.on("error", reject);
+        req.end();
+      });
+
+      assert.strictEqual(response.hostHeader, undefined);
+      assert.strictEqual(response.authorityHeader, "example.com:8080");
+
+      await new Promise((resolve) => testServer.close(resolve));
+    });
+
+    it("should filter HTTP/1.1 headers when http11Compat is true", async () => {
+      const testServer = await new Promise((resolve) => {
+        const srv = srvh2ch11.createServer(
+          { http11Compat: true },
+          (req, res) => {
+            res.setHeader("Connection", "keep-alive");  // Should be filtered
+            res.setHeader("X-Custom", "value");          // Should NOT be filtered
+            res.writeHead(200, { "Content-Type": "text/plain" });
+            res.end("OK");
+          }
+        );
+
+        srv.listen(0, () => {
+          resolve(srv);
+        });
+      });
+
+      const testPort = testServer.address().port;
+
+      const response = await new Promise((resolve, reject) => {
+        const client = http2.connect(`http://localhost:${testPort}`);
+        const req = client.request({
+          ":path": "/test",
+          ":method": "GET"
+        });
+
+        let headers;
+        req.on("response", (h) => {
+          headers = h;
+          let data = "";
+          req.on("data", (chunk) => (data += chunk));
+          req.on("end", () => {
+            client.close();
+            resolve({ headers, body: data });
+          });
+        });
+
+        req.on("error", reject);
+        req.end();
+      });
+
+      assert.strictEqual(response.headers.connection, undefined);
+      assert.strictEqual(response.headers["x-custom"], "value");
+
+      await new Promise((resolve) => testServer.close(resolve));
+    });
+
+    it("should use default Node.js HTTP/2 behavior when http11Compat is false", async () => {
+      const testServer = await new Promise((resolve) => {
+        const srv = srvh2ch11.createServer(
+          { http11Compat: false },
+          (req, res) => {
+            // When http11Compat is false, we don't override setHeader
+            // Node.js HTTP/2 will handle headers with its own validation (drops invalid headers with warning)
+            res.setHeader("Connection", "keep-alive");  // Node.js will drop this
+            res.setHeader("X-Custom", "value");          // This should work fine
+            res.writeHead(200, { "Content-Type": "text/plain" });
+            res.end("OK");
+          }
+        );
+
+        srv.listen(0, () => {
+          resolve(srv);
+        });
+      });
+
+      const testPort = testServer.address().port;
+
+      const response = await new Promise((resolve, reject) => {
+        const client = http2.connect(`http://localhost:${testPort}`);
+        const req = client.request({
+          ":path": "/test",
+          ":method": "GET"
+        });
+
+        let headers;
+        req.on("response", (h) => {
+          headers = h;
+          let data = "";
+          req.on("data", (chunk) => (data += chunk));
+          req.on("end", () => {
+            client.close();
+            resolve({ headers, body: data });
+          });
+        });
+
+        req.on("error", reject);
+        req.end();
+      });
+
+      // Node.js HTTP/2 drops invalid headers like "connection"
+      assert.strictEqual(response.headers.connection, undefined);
+      assert.strictEqual(response.headers["x-custom"], "value");
 
       await new Promise((resolve) => testServer.close(resolve));
     });
