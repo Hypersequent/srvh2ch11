@@ -68,6 +68,31 @@ const server = srvh2ch11.createServer(options, (req, res) => {
 server.listen(8080);
 ```
 
+### Force H2C-only mode
+
+```javascript
+import srvh2ch11 from "srvh2ch11";
+
+const options = {
+    forceH2c: process.env.SRV_FORCE_H2C === "true",  // Only accept H2C connections in production
+    http2: {
+        maxConcurrentStreams: 100
+    }
+};
+
+const server = srvh2ch11.createServer(options, (req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Hello from HTTP/" + req.httpVersion);
+});
+
+server.listen(8080);
+```
+
+Run with:
+```bash
+SRV_FORCE_H2C=true node server.js
+```
+
 ## API
 
 ### `srvh2ch11.createServer([options], onRequestHandler)`
@@ -77,7 +102,10 @@ Creates a server that can handle both HTTP/1.1 and HTTP/2 cleartext connections.
 - `options` (optional): Configuration object with the following structure:
   - `http1`: Options passed to `http.createServer()`
   - `http2`: Options passed to `http2.createServer()`
-  - **Note**: Currently only `http1` and `http2` keys are used from the options object. Any other keys will be ignored.
+  - `forceH2c`: Boolean (default: `false`) - When `true`, forces HTTP/2-only mode, bypassing protocol detection and rejecting HTTP/1.1 connections
+  - `http11Compat`: Boolean (default: `false`) - When `true`, enables HTTP/1.1 compatibility transformations for HTTP/2 requests:
+    - Maps `:authority` header to `host` header
+    - Filters out HTTP/1.1-specific headers (connection, keep-alive, etc.) to prevent warnings
 - `onRequestHandler`: The request handler function with signature `(req, res) => {}`
 
 Returns an object with:
@@ -138,6 +166,8 @@ The tests cover:
 - HTTP/2 with prior knowledge (GET, POST, concurrent streams)
 - Mixed protocol handling (HTTP/1.1 and HTTP/2 simultaneously)
 - Server configuration with separate options
+- Force HTTP/2-only mode (`forceH2c` option)
+- HTTP/1.1 compatibility mode (`http11Compat` option)
 - Basic curl-based integration tests
 - Compatibility across multiple Node.js versions (20, 22, 24)
 

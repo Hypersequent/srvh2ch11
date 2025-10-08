@@ -7,7 +7,8 @@ const HTTP2_PREFACE = "PRI * HTTP/2.0";
 export interface ServerOptions {
   http1?: any;
   http2?: any;
-  ForceH2C?: boolean;
+  forceH2c?: boolean;
+  http11Compat?: boolean;
 }
 
 export type RequestHandler = ((req: IncomingMessage, res: ServerResponse) => void) &
@@ -23,7 +24,7 @@ export interface H2CH11Server {
   rawServer: net.Server;
 }
 
-const http1Headers = [
+const http1Headers = new Set([
   "connection",
   "proxy-connection",
   "keep-alive",
@@ -33,7 +34,7 @@ const http1Headers = [
   "trailer",
   "transfer-encoding",
   "upgrade",
-];
+]);
 
 export function createServer(onRequestHandler: RequestHandler): H2CH11Server;
 export function createServer(options: ServerOptions, onRequestHandler: RequestHandler): H2CH11Server;
@@ -47,45 +48,53 @@ export function createServer(
   }
 
   options = options || ({} as ServerOptions);
-  const forceH2c = options.ForceH2C ?? process.env.SRV_FORCE_H2C === "true";
+  const forceH2c = options.forceH2c ?? false;
+  const http11Compat = options.http11Compat ?? false;
   const http1Options = options.http1 || {};
   const http2Options = options.http2 || {};
 
   const h1Server = http.createServer(http1Options, onRequestHandler!);
   const h2Server = http2.createServer(http2Options, (req, res) => {
-    req.headers[process.env.HOST_HEADER ?? "host"] ??= req.headers[":authority"];
-    res.setHeader = function (name, value) {
-      if (http1Headers.includes(name.toLowerCase())) {
-        return;
-      }
-      Http2ServerResponse.prototype.setHeader.call(this, name, value);
-    };
+    if (http11Compat) {
+      req.headers["host"] ??= req.headers[":authority"];
+      res.setHeader = function (name, value) {
+        if (http1Headers.has(name.toLowerCase())) {
+          return;
+        }
+        Http2ServerResponse.prototype.setHeader.call(this, name, value);
+      };
+    }
     onRequestHandler!(req, res);
   });
 
+  if (forceH2c) {
+    return {
+      listen: h2Server.listen.bind(h2Server),
+      close: (callback?: () => void) => {
+        h2Server.close(callback);
+      },
+      on: h2Server.on.bind(h2Server),
+      address: h2Server.address.bind(h2Server),
+      h1Server,
+      h2Server,
+      rawServer: h2Server as any,
+    };
+  }
+
   const rawConnListener = (socket: net.Socket) => {
-    socket.once(
-      "data",
-      forceH2c
-        ? (chunk: Buffer) => {
-            socket.pause();
-            socket.unshift(chunk);
-            h2Server.emit("connection", socket);
-          }
-        : (chunk: Buffer) => {
-            socket.pause();
-            socket.unshift(chunk);
+    socket.once("data", (chunk: Buffer) => {
+      socket.pause();
+      socket.unshift(chunk);
 
-            const prefix = chunk.toString("ascii", 0, Math.min(chunk.length, HTTP2_PREFACE.length));
+      const prefix = chunk.toString("ascii", 0, Math.min(chunk.length, HTTP2_PREFACE.length));
 
-            if (prefix.startsWith(HTTP2_PREFACE)) {
-              h2Server.emit("connection", socket);
-            } else {
-              socket.resume();
-              h1Server.emit("connection", socket);
-            }
-          }
-    );
+      if (prefix.startsWith(HTTP2_PREFACE)) {
+        h2Server.emit("connection", socket);
+      } else {
+        socket.resume();
+        h1Server.emit("connection", socket);
+      }
+    });
   };
 
   const rawServer = net.createServer(rawConnListener);
