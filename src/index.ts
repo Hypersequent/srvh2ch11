@@ -24,17 +24,7 @@ export interface H2CH11Server {
   rawServer: net.Server;
 }
 
-const http1Headers = new Set([
-  "connection",
-  "proxy-connection",
-  "keep-alive",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-]);
+const http1HeaderRegex = /^(connection|proxy-connection|keep-alive|proxy-authenticate|proxy-authorization|te|trailer|transfer-encoding|upgrade)$/i;
 
 export function createServer(onRequestHandler: RequestHandler): H2CH11Server;
 export function createServer(options: ServerOptions, onRequestHandler: RequestHandler): H2CH11Server;
@@ -58,7 +48,7 @@ export function createServer(
     if (http11Compat) {
       req.headers["host"] ??= req.headers[":authority"];
       res.setHeader = function (name, value) {
-        if (http1Headers.has(name.toLowerCase())) {
+        if (http1HeaderRegex.test(name)) {
           return;
         }
         Http2ServerResponse.prototype.setHeader.call(this, name, value);
